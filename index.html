@@ -83,13 +83,13 @@ function tot(pre){const r={i:0,o:0,f:0};all('tx').forEach(x=>{if(x.d.startsWith(
 const nm=id=>M[id]?ico(M[id].e,18)+' ':'👤 ';
 function setTab(t){tab=t;render()}
 function render(){
- $('#nav').innerHTML=[['home','🏠','首頁'],['fix','🔁','固定收支'],['year','📊','年度報告'],['set','⚙️','設定']].map(([k,i,n])=>`<button class="${tab==k?'on':''}" onclick="setTab('${k}')"><span>${i}</span>${n}</button>`).join('');
+ $('#nav').innerHTML=[['home','🏠','首頁'],['fix','🔁','固定'],['todo','✅','待辦'],['stock','📦','庫存'],['year','📊','年度'],['set','⚙️','設定']].map(([k,i,n])=>`<button class="${tab==k?'on':''}" onclick="setTab('${k}')"><span>${i}</span>${n}</button>`).join('');
  let b='';
  if(!CRED)b=loginHtml();else if(fail)b=`<div class="card"><b>🔑 需要登入才能共用</b><p class="sub">請在 claude.ai 登入你的帳號開啟這個頁面。擁有者要把另一半邀請為「Contributor（可使用並變更資料）」以上，兩人才能看到同一份帳本。</p></div>`;
  else if(!ok())b=`<div class="card">🐾 小金庫載入中…<p class="sub">${esc(msg)}</p></div>`;
  else{
   const chips=Object.entries(M).map(([id,m])=>`<button class="chip ${id===ID?'on':''}" onclick="pick('${id}')">${ico(m.e,22)} ${esc(m.n)}${id===ID?'（我）':''}</button>`).join('');
-  b=`<div class="row" style="justify-content:center">${chips}</div>`+(msg?`<div class="tip out">${esc(msg)} <button class="btn s" onclick="msg='';render()">知道了</button></div>`:'')+(!M[ID]?welcome():tab=='home'?home():tab=='fix'?fix():tab=='year'?year():set())}
+  b=`<div class="row" style="justify-content:center">${chips}</div>`+(msg?`<div class="tip out">${esc(msg)} <button class="btn s" onclick="msg='';render()">知道了</button></div>`:'')+(!M[ID]?welcome():tab=='home'?home():tab=='fix'?fix():tab=='year'?year():tab=='todo'?todo():tab=='stock'?stock():set())}
  $('#app').innerHTML=b}
 function welcome(){return `<div class="card"><b>👋 歡迎！先告訴大家你是誰</b><div class="row" style="margin-top:8px"><input id="me" value="🐻" style="flex:0 0 56px;text-align:center"><input id="mn" placeholder="你的暱稱，如：老公"></div>${picker()}<button class="btn" style="width:100%;margin-top:10px" onclick="saveMe()">進入小金庫</button></div>`}
 function saveMe(){const n=$('#mn').value.trim();if(!n)return;if(!ID){ID=rnd(4);try{localStorage.setItem('me',ID)}catch(e){}}w(()=>db.doc('members/'+ID).set({n,e:$('#me').value||'🐻'}))}
@@ -97,7 +97,7 @@ function mshift(d){vm+=d;if(vm>12){vm=1;vy++}if(vm<1){vm=12;vy--}render()}
 function home(){
  const p=ym(vy,vm),T=tot(p),list=all('tx').filter(x=>x.d.startsWith(p)).sort((a,b)=>b.d.localeCompare(a.d)),mine=list.filter(x=>x.o===ID);
  const s=(l,t)=>l.filter(x=>x.t==t).reduce((a,x)=>a+x.a,0),bal=T.i-T.o;
- return `<div class="card"><div class="row sp"><button class="btn s" onclick="mshift(-1)">◀</button><b>${vy} 年 ${vm} 月</b><button class="btn s" onclick="mshift(1)">▶</button></div>
+ return `${alerts()}<div class="card"><div class="row sp"><button class="btn s" onclick="mshift(-1)">◀</button><b>${vy} 年 ${vm} 月</b><button class="btn s" onclick="mshift(1)">▶</button></div>
  <div class="row sp" style="margin-top:10px"><div><div class="sub">👨‍👩‍👧 家庭結餘</div><div class="big ${bal<0?'out':'in'}">${$$(bal)}</div></div><div style="text-align:right"><div class="sub">收入 <span class="in">${$$(T.i)}</span></div><div class="sub">支出 <span class="out">${$$(T.o)}</span></div></div></div>
  <div class="sub" style="margin-top:8px">${nm(ID)}我的：收入 ${$$(s(mine,'in'))}　支出 ${$$(s(mine,'out'))}</div></div>
  <div class="card"><b>✏️ 記一筆</b>
@@ -125,6 +125,33 @@ function editRow(x){const L=x.t=='in'?IC:EC,o=L.includes(x.c)?L:[x.c,...L];retur
 function edit(id){editId=id;render()}
 function saveEdit(id){const a=parseFloat($('#ea').value);if(!(a>0))return;editId=null;w(()=>col().doc(id).update({a,c:$('#ec').value,d:$('#ed').value,note:$('#en').value}))}
 function delEdit(id){editId=null;w(()=>col().doc(id).delete())}
+let tf='all',stEdit=null,showLog=null;
+const TDS=()=>ym(cy,cm)+'-'+pad(td),fmt=t=>{const d=new Date(t);return (d.getMonth()+1)+'/'+d.getDate()+' '+pad(d.getHours())+':'+pad(d.getMinutes())};
+const nn=id=>M[id]?ico(M[id].e,16)+' '+esc(M[id].n):'某位家人';
+const mineTodo=x=>x.s=='fam'||x.o===ID;
+function alerts(){const T=TDS(),a=all('todo').filter(x=>!x.done&&mineTodo(x)&&x.due&&x.due<=T).length,b=all('item').filter(x=>x.q<=0||(x.min>0&&x.q<=x.min)).length;
+ return a||b?`<div class="tip">${a?`<a onclick="setTab('todo')" style="cursor:pointer">✅ ${a} 項待辦已到期或逾期</a>`:''}${a&&b?'　':''}${b?`<a onclick="setTab('stock')" style="cursor:pointer">📦 ${b} 項用品快用完</a>`:''}</div>`:''}
+function todo(){
+ const T=TDS();let L=all('todo').filter(mineTodo);if(tf=='fam')L=L.filter(x=>x.s=='fam');else if(tf=='me')L=L.filter(x=>x.s=='me');
+ const act=L.filter(x=>!x.done).sort((a,b)=>(a.due||'9')<(b.due||'9')?-1:1),dn=L.filter(x=>x.done).sort((a,b)=>(b.at||'')>(a.at||'')?1:-1);
+ const row=x=>{const df=x.due?Math.round((new Date(x.due)-new Date(T))/864e5):0,od=!x.done&&x.due&&df<0;
+  return `<div class="li"><div style="display:flex;gap:10px;align-items:center;flex:1"><button class="chip ${x.done?'on':''}" style="padding:2px 12px" onclick="tdone('${x.id}')">${x.done?'✔':'　'}</button><div style="${x.done?'text-decoration:line-through;opacity:.6':''}">${esc(x.t)}<div class="sub">${x.s=='fam'?'👨‍👩‍👧 家庭':nn(x.o)+' 的個人'}${x.due?` ・ <span class="${od?'out':''}">📅 ${x.due.slice(5)}${od?'（已逾期）':!x.done&&df==0?'（今天）':''}</span>`:''}${x.done&&x.by?` ・ ✔ ${nn(x.by)}`:''}</div></div></div><button class="btn s" onclick="del('${x.id}')">✕</button></div>`};
+ return `<div class="card"><b>📝 新增待辦</b><div class="row" style="margin-top:8px"><input id="tt" placeholder="要做什麼？"></div><div class="row" style="margin-top:8px"><select id="ts"><option value="fam">👨‍👩‍👧 家庭待辦</option><option value="me">🙋 我的個人待辦</option></select></div><div class="row" style="margin-top:8px"><label class="sub"><input id="tdc" type="checkbox" style="flex:none" onchange="$('#tdd').style.display=this.checked?'':'none'"> 設定期限</label><input id="tdd" type="date" value="${T}" style="display:none"></div><button class="btn g" style="width:100%;margin-top:8px" onclick="addTodo()">新增</button><p class="sub">個人待辦會標示是誰的，所有家人都看得到。</p></div>
+ <div class="row" style="justify-content:center">${[['all','全部'],['fam','家庭'],['me','個人']].map(([k,n])=>`<button class="chip ${tf==k?'on':''}" onclick="tf='${k}';render()">${n}</button>`).join('')}</div>
+ <div class="card"><b>⏳ 待完成（${act.length}）</b>${act.length?act.map(row).join(''):'<p class="sub">全部完成，太棒了 🎉</p>'}</div>
+ ${dn.length?`<div class="card"><b>✔ 已完成（${dn.length}）</b>${dn.map(row).join('')}</div>`:''}`}
+function addTodo(){const t=$('#tt').value.trim();if(!t)return;w(()=>col().doc('d'+uid()).set({k:'todo',t,s:$('#ts').value,o:ID,due:$('#tdc').checked?$('#tdd').value:'',done:false}))}
+function tdone(id){const x=all('todo').find(y=>y.id===id);if(x)w(()=>col().doc(id).update({done:!x.done,by:ID,at:TDS()}))}
+function stock(){const L=all('item').sort((a,b)=>a.n.localeCompare(b.n,'zh-Hant'));
+ return `<div class="card"><b>📦 新增家庭用品</b><div class="row" style="margin-top:8px"><input id="sn2" placeholder="物品，如：衛生紙"><input id="su2" placeholder="單位（包、瓶）" style="flex:0 0 100px"></div><div class="row" style="margin-top:8px"><label class="sub">目前數量</label><input id="sq2" type="number" value="1"><label class="sub">低於幾個提醒</label><input id="sm2" type="number" value="1"></div><button class="btn g" style="width:100%;margin-top:8px" onclick="addItem()">新增項目</button></div>
+ <div class="card"><b>🧺 庫存清單</b>${L.length?L.map(itemRow).join(''):'<p class="sub">還沒有項目，先新增衛生紙、牙膏、洗衣精吧 🧻</p>'}</div>`}
+function itemRow(x){if(x.id===stEdit)return itemEdit(x);const lg=(x.log||[])[0],low=x.q<=0?'已用完':(x.min>0&&x.q<=x.min)?'快用完':'';
+ return `<div class="li" style="display:block"><div class="row sp" style="flex-wrap:nowrap"><div style="flex:1"><b>${esc(x.n)}</b>${low?`<span class="tag">⚠️ ${low}</span>`:''}<div class="sub">${lg?`${nn(lg.u)} ${lg.d>0?'＋':'－'}${Math.abs(lg.d)} ・ ${fmt(lg.t)}`:'尚無異動'}</div></div><div class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn" style="padding:6px 14px" onclick="bump('${x.id}',-1)">－</button><span style="min-width:54px;text-align:center;font-size:22px;font-weight:800">${x.q}<span class="sub">${esc(x.u||'')}</span></span><button class="btn g" style="padding:6px 14px" onclick="bump('${x.id}',1)">＋</button></div></div><div class="row" style="margin-top:6px"><button class="btn s" onclick="showLog=showLog=='${x.id}'?null:'${x.id}';render()">📜 異動紀錄</button><button class="btn s" onclick="stEdit='${x.id}';render()">✏️ 修改</button></div>${showLog==x.id?`<div class="sub" style="margin-top:6px">${(x.log||[]).map(l=>`<div>${fmt(l.t)}　${nn(l.u)} ${l.d>0?'＋':'－'}${Math.abs(l.d)}</div>`).join('')||'沒有紀錄'}</div>`:''}</div>`}
+function itemEdit(x){return `<div style="background:var(--pk2);border-radius:14px;padding:10px;margin:6px 0"><div class="row"><input id="en2" value="${esc(x.n)}"><input id="eu2" value="${esc(x.u||'')}" placeholder="單位" style="flex:0 0 70px"></div><div class="row" style="margin-top:8px"><label class="sub">數量</label><input id="eq2" type="number" value="${x.q}"><label class="sub">低於提醒</label><input id="em2" type="number" value="${x.min||0}"></div><div class="row" style="margin-top:8px"><button class="btn g" onclick="saveItem('${x.id}')">儲存</button><button class="btn s" onclick="stEdit=null;render()">取消</button><button class="btn s" onclick="if(confirm('確定刪除這個項目？'))delItem('${x.id}')">🗑️ 刪除</button></div></div>`}
+function addItem(){const n=$('#sn2').value.trim();if(!n)return;const q=Math.max(0,parseFloat($('#sq2').value)||0);w(()=>col().doc('i'+uid()).set({k:'item',n,q,u:$('#su2').value.trim(),min:parseFloat($('#sm2').value)||0,log:q?[{u:ID,d:q,t:Date.now()}]:[]}))}
+function bump(id,d){const x=all('item').find(y=>y.id===id);if(!x)return;const q=Math.max(0,(x.q||0)+d),dd=q-(x.q||0);if(!dd)return;w(()=>col().doc(id).update({q,log:[{u:ID,d:dd,t:Date.now()},...(x.log||[])].slice(0,10)}))}
+function saveItem(id){const x=all('item').find(y=>y.id===id),n=$('#en2').value.trim(),q=Math.max(0,parseFloat($('#eq2').value)||0);if(!x||!n)return;const dd=q-(x.q||0);stEdit=null;w(()=>col().doc(id).update({n,u:$('#eu2').value.trim(),min:parseFloat($('#em2').value)||0,q,log:dd?[{u:ID,d:dd,t:Date.now()},...(x.log||[])].slice(0,10):(x.log||[])}))}
+function delItem(id){stEdit=null;w(()=>col().doc(id).delete())}
 function catOpt(){vf.t=$('#t').value;vf.c=null;$('#c').innerHTML=($('#t').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
 function addTx(){const a=parseFloat($('#a').value);if(!(a>0))return;const p=false;vf={};w(()=>col(p).doc('t'+uid()).set({k:'tx',d:$('#d').value,a,t:$('#t').value,c:$('#c').value,o:ID,p,note:$('#n').value}))}
 function del(id){const x=[...F,...P].find(y=>y.id===id);if(x)w(()=>col(x.p).doc(id).delete())}
