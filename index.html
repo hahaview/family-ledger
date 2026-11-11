@@ -43,7 +43,7 @@ const ds=s=>s.docs.map(d=>({id:d.id,...d.data()}));
 const all=k=>[...F,...P].filter(x=>x.k===k);
 const ok=()=>rd.f&&rd.p&&rd.m&&rd.a;
 async function w(fn){try{await fn()}catch(e){msg='儲存失敗：'+(e&&e.message||e.code||'請確認你有編輯權限')}render()}
-const DEF='https://script.google.com/macros/s/AKfycbxTYJPAFNarIDO3ZS4HL6KOXR2oplXscTUeQiJ5h6oBWzcTPj3XsniJlWFHV4a7gBEEew/exec';let API=DEF;
+const DEF='https://script.google.com/macros/s/AKfycby8oUx71raC0vj4ovqPO2tqOpSpfR5_5Nzzy8MLJuu8Uq1BZZhSaWrMFNyDMwwPXT8S5Q/exec';let API=DEF;
 let CRED=null,subs={},cache={},timer=0,loginErr='';
 async function call(op,x){const r=await fetch(API,{method:'POST',body:JSON.stringify({...CRED,op,...x})});const j=await r.json();if(j.err)throw{code:j.err,message:j.err};return j}
 const snapOf=p=>({docs:Object.entries(cache[p]||{}).map(([id,d])=>({id,data:()=>d}))});
@@ -72,7 +72,7 @@ async function gen(){
   const c=col(x.p),isr=x.k=='rec',todo=[],last=x.last||'';let st=x.from;if(last){let[a,b]=last.split('-').map(Number);if(++b>12){b=1;a++}st=ym(a,b)}
   let[y,m]=st.split('-').map(Number),done=last;
   while(y<cy||(y==cy&&m<=cm)){const k=ym(y,m),d=isr?Math.min(x.day,dim(y,m)):15;if(y==cy&&m==cm&&d>td)break;
-   if(isr||x.m.includes(m))todo.push(['x'+x.id+'_'+k,{k:'tx',d:k+'-'+pad(d),a:isr?x.a:x.sh*x.dps,t:isr?x.t:'in',c:isr?x.c:IC[1],o:ID,p:!!x.p,note:isr?x.name:x.name+' 股利',auto:1}]);
+   if(isr?(x.freq!='y'||m==x.mon):x.m.includes(m))todo.push(['x'+x.id+'_'+k,{k:'tx',d:k+'-'+pad(d),a:isr?x.a:x.sh*x.dps,t:isr?x.t:'in',c:isr?x.c:IC[1],o:ID,p:!!x.p,note:isr?x.name:x.name+' 股利',auto:1}]);
    done=k;if(++m>12){m=1;y++}}
   if(done!==last){for(const t of todo)await c.doc(t[0]).set(t[1]);await c.doc(x.id).update({last:done})}
  }}catch(e){msg='自動入帳失敗：'+(e&&e.message||'')}
@@ -99,7 +99,7 @@ function home(){
  return `<div class="card"><div class="row sp"><button class="btn s" onclick="mshift(-1)">◀</button><b>${vy} 年 ${vm} 月</b><button class="btn s" onclick="mshift(1)">▶</button></div>
  <div class="row sp" style="margin-top:10px"><div><div class="sub">👨‍👩‍👧 家庭結餘</div><div class="big ${bal<0?'out':'in'}">${$$(bal)}</div></div><div style="text-align:right"><div class="sub">收入 <span class="in">${$$(T.i)}</span></div><div class="sub">支出 <span class="out">${$$(T.o)}</span></div></div></div>
  <div class="sub" style="margin-top:8px">${nm(ID)}我的：收入 ${$$(s(mine,'in'))}　支出 ${$$(s(mine,'out'))}</div></div>
- <div class="card"><div class="row sp"><b>✏️ 記一筆</b><button class="btn ${vOn?'':'g'}" onclick="voice()">${vOn?'⏹️ 停止':'🎤 語音輸入'}</button></div><div class="sub" style="margin-top:6px">${esc(vsMsg)}</div>
+ <div class="card"><b>✏️ 記一筆</b>
  <div class="row" style="margin-top:8px"><select id="t" onchange="catOpt()"><option value="out">💸 支出</option><option value="in" ${vf.t=='in'?'selected':''}>💰 收入</option></select><input id="a" type="number" inputmode="decimal" placeholder="金額" value="${vf.a||''}"></div>
  <div class="row" style="margin-top:8px"><select id="c">${(vf.t=='in'?IC:EC).map(c=>`<option ${c==vf.c?'selected':''}>${c}</option>`).join('')}</select><input id="d" type="date" value="${vf.d||ym(cy,cm)+'-'+pad(td)}"></div>
  <div class="row" style="margin-top:8px"><input id="n" placeholder="備註（選填）" value="${esc(vf.n||'')}"></div>
@@ -114,54 +114,33 @@ function budgetCard(list){
 function setBud(){const a=parseFloat($('#ba').value);if(!(a>=0))return;const m={...((all('budget')[0]||{}).m||{})};if(a>0)m[$('#bc').value]=a;else delete m[$('#bc').value];w(()=>db.doc('fam/budget').set({k:'budget',m}))}
 function trend(Y){const d=[];for(let m=1;m<=12;m++)d.push(tot(ym(Y,m)));const mx=Math.max(1,...d.map(t=>Math.max(t.i,t.o)));
  return `<div style="display:flex;gap:3px;margin-top:12px">${d.map((t,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="display:flex;align-items:flex-end;gap:1px;height:70px"><i style="width:5px;border-radius:3px;background:var(--mt);height:${t.i/mx*100}%"></i><i style="width:5px;border-radius:3px;background:var(--pk);height:${t.o/mx*100}%"></i></div><span class="sub" style="font-size:10px">${i+1}月</span></div>`).join('')}</div><div class="sub">🟢 每月收入　🌸 每月支出</div>`}
-let vf={},vsMsg='',vrec=null,vOn=0;
-const CN={零:0,〇:0,一:1,二:2,兩:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9};
-function cn2n(s){let tot=0,sec=0,num=0,lu=0,z=0;for(const ch of s){if(ch in CN){num=CN[ch];if(num==0)z=1}else{const u={十:10,百:100,千:1000}[ch];if(u){sec+=(num||(u==10?1:0))*u;num=0;lu=u}else if(ch=='萬'||ch=='万'){tot+=(sec+num)*10000;sec=0;num=0;lu=10000}}}
- if(num&&lu>=100&&!z)num*=lu/10;return tot+sec+num}
-function parseVoice(tx){let t=tx.replace(/[，,\s]/g,''),a=0,m=t.match(/\d+(\.\d+)?/);
- if(m)a=parseFloat(m[0]);else{m=t.match(/[零〇一二兩两三四五六七八九十百千萬万]+/);if(m)a=cn2n(m[0])}
- const has=(...k)=>k.some(x=>t.includes(x));let ty='out',c;
- if(has('月薪','薪水','薪資')){ty='in';c=IC[0]}else if(has('股利','股息')){ty='in';c=IC[1]}else if(has('收入','紅包','獎金','賺','入帳')){ty='in';c=IC[2]}
- else c=has('保險')?EC[7]:has('房租','房貸')?EC[3]:has('電話','話費','手機費')?EC[4]:has('網路','寬頻')?EC[5]:has('水費','電費','瓦斯','水電')?EC[6]:has('醫','藥','診所','掛號','牙')?EC[10]:has('學費','補習','奶粉','尿布','小孩','育兒','教育')?EC[8]:has('捷運','公車','計程','加油','停車','高鐵','火車','交通','油錢','機票')?EC[2]:has('電影','遊戲','旅遊','旅行','唱歌','娛樂','玩')?EC[9]:has('早餐','午餐','晚餐','宵夜','餐','飯','麵','咖啡','飲料','便當','手搖','吃','喝','外送')?EC[0]:has('超市','全聯','日用','衛生紙','洗','購物','買')?EC[1]:EC[11];
- const d=new Date();if(has('前天'))d.setDate(d.getDate()-2);else if(has('昨天'))d.setDate(d.getDate()-1);
- return{a,t:ty,c,d:ym(d.getFullYear(),d.getMonth()+1)+'-'+pad(d.getDate()),p:false}}
-function voice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!SR){vsMsg='這個瀏覽器（或主畫面 app 模式）不支援語音辨識，可改用手機鍵盤上的麥克風 🎤 輸入備註與金額';render();return}
- if(vOn){vrec.stop();return}
- vrec=new SR();vrec.lang='zh-TW';vrec.interimResults=false;vrec.maxAlternatives=1;
- vrec.onstart=()=>{vOn=1;vsMsg='🎙️ 請說，例如：「午餐 150 元」「昨天加油 一千二」';render()};
- vrec.onerror=e=>{vOn=0;vsMsg=e.error=='not-allowed'?'請在瀏覽器允許麥克風權限後再試一次':'沒聽清楚，再試一次吧（'+e.error+'）';render()};
- vrec.onend=()=>{vOn=0;render()};
- vrec.onresult=e=>{const tx=e.results[0][0].transcript,r=parseVoice(tx);
-  if(!r.a){vsMsg='聽到：「'+tx+'」，但沒聽出金額，請再說一次或手動輸入';return}
-  vf={t:r.t,a:r.a,c:r.c,d:r.d,n:tx,p:r.p};vsMsg='✅ 聽到：「'+tx+'」→ '+r.c+' '+$$(r.a)+'，確認後按「記下來」'};
- try{vrec.start()}catch(e){vsMsg='無法啟動語音辨識';render()}}
+let vf={};
 function catOpt(){vf.t=$('#t').value;vf.c=null;$('#c').innerHTML=($('#t').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
 function addTx(){const a=parseFloat($('#a').value);if(!(a>0))return;const p=false;vf={};w(()=>col(p).doc('t'+uid()).set({k:'tx',d:$('#d').value,a,t:$('#t').value,c:$('#c').value,o:ID,p,note:$('#n').value}))}
 function del(id){const x=[...F,...P].find(y=>y.id===id);if(x)w(()=>col(x.p).doc(id).delete())}
 function fix(){
  const rl=all('rec'),sl=all('st');
- return `<div class="card"><b>🔁 固定收支（每月自動入帳）</b><p class="sub">月薪、保險費、電話費、網路費、房貸等，設定後每月自動記帳（由設定的人開啟頁面時入帳）。</p>
+ return `<div class="card"><b>🔁 固定收支（自動入帳）</b><p class="sub">月薪、電話費、網路費、房貸可設「每月」；保險費、稅金、年費等可設「每年」，到期日開啟頁面時自動記帳。</p>
  <div class="row"><input id="rn" placeholder="名稱，如：月薪"><input id="ra" type="number" placeholder="金額"></div>
  <div class="row" style="margin-top:8px"><select id="rt" onchange="rcat()"><option value="in">💰 收入</option><option value="out">💸 支出</option></select><select id="rc">${IC.map(c=>`<option>${c}</option>`).join('')}</select></div>
- <div class="row" style="margin-top:8px"><label class="sub">每月幾號</label><input id="rdy" type="number" min="1" max="31" value="5"><label class="sub">起始月</label><input id="rf" type="month" value="${ym(cy,cm)}"></div>
+ <div class="row" style="margin-top:8px"><select id="rq" onchange="$('#rm').style.display=this.value=='y'?'':'none'"><option value="m">每月</option><option value="y">每年</option></select><select id="rm" style="display:none">${[...Array(12)].map((_,i)=>`<option value="${i+1}">${i+1} 月</option>`).join('')}</select><label class="sub">幾號</label><input id="rdy" type="number" min="1" max="31" value="5"></div><div class="row" style="margin-top:8px"><label class="sub">起始月</label><input id="rf" type="month" value="${ym(cy,cm)}"></div>
  
  <button class="btn g" style="width:100%;margin-top:8px" onclick="addRec()">新增固定項目</button>
- ${rl.map(r=>`<div class="li"><div>${esc(r.c)} ${esc(r.name)}${r.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(r.o)}每月 ${r.day} 號起 ${r.from}</div></div><div class="${r.t}">${$$(r.a)} ${r.o===ID?`<button class="btn s" onclick="del('${r.id}')">✕</button>`:''}</div></div>`).join('')}</div>
+ ${rl.map(r=>`<div class="li"><div>${esc(r.c)} ${esc(r.name)}${r.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(r.o)}${r.freq=='y'?'每年 '+r.mon+' 月 '+r.day+' 號':'每月 '+r.day+' 號'}・自 ${r.from} 起</div></div><div class="${r.t}">${$$(r.a)} ${r.o===ID?`<button class="btn s" onclick="del('${r.id}')">✕</button>`:''}</div></div>`).join('')}</div>
  <div class="card"><b>📈 股票股利</b><p class="sub">輸入股數與每次每股股利，配息月份自動入帳；領到後可修正每股實際金額。（網頁無法連線抓股利資料，需手動更新每股金額）</p>
  <div class="row"><input id="sn" placeholder="股票，如：0056"><input id="ss" type="number" placeholder="股數"><input id="sd" type="number" step="0.01" placeholder="每次每股股利"></div>
  <div class="row" style="margin-top:8px"><input id="sm" placeholder="配息月份，如：1,4,7,10"></div>
  <button class="btn g" style="width:100%;margin-top:8px" onclick="addSt()">新增持股</button>
  ${sl.map(s=>`<div class="li"><div>📈 ${esc(s.name)}${s.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(s.o)}${s.sh} 股・${s.m.join(',')} 月配息・約 ${$$(s.sh*s.dps)}/次</div></div>${s.o===ID?`<div class="row" style="flex:0 0 auto;flex-wrap:nowrap"><input id="e${s.id}" type="number" step="0.01" value="${s.dps}" style="width:70px;flex:none"><button class="btn s" onclick="editSt('${s.id}')">更新</button><button class="btn s" onclick="del('${s.id}')">✕</button></div>`:''}</div>`).join('')}</div>`}
 function rcat(){$('#rc').innerHTML=($('#rt').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
-function addRec(){const a=parseFloat($('#ra').value),n=$('#rn').value.trim();if(!(a>0)||!n)return;const p=false;w(()=>col(p).doc('r'+uid()).set({k:'rec',name:n,a,t:$('#rt').value,c:$('#rc').value,day:Math.min(31,Math.max(1,+$('#rdy').value||1)),from:$('#rf').value||ym(cy,cm),o:ID,p,last:''}))}
+function addRec(){const a=parseFloat($('#ra').value),n=$('#rn').value.trim();if(!(a>0)||!n)return;const p=false;w(()=>col(p).doc('r'+uid()).set({k:'rec',name:n,a,t:$('#rt').value,c:$('#rc').value,day:Math.min(31,Math.max(1,+$('#rdy').value||1)),from:$('#rf').value||ym(cy,cm),freq:$('#rq').value,mon:+$('#rm').value||1,o:ID,p,last:''}))}
 function addSt(){const sh=+$('#ss').value,dps=+$('#sd').value,m=$('#sm').value.split(/[,，\s]+/).map(Number).filter(x=>x>=1&&x<=12),n=$('#sn').value.trim(),p=false;if(!n||!(sh>0)||!(dps>=0)||!m.length)return;w(()=>col(p).doc('s'+uid()).set({k:'st',name:n,sh,dps,m,from:ym(cy,cm),o:ID,p,last:''}))}
 function editSt(id){const s=[...F,...P].find(x=>x.id===id),v=parseFloat($('#e'+id).value);if(s&&v>=0)w(()=>col(s.p).doc(id).update({dps:v}))}
 function report(Y){
  const T=tot(String(Y)),R={inc:T.i,out:T.o,fixed:T.f,vr:T.o-T.f,cats:{},pi:0,po:0,pfix:0,pvar:0};
  all('tx').forEach(x=>{if(x.d.startsWith(Y)&&x.t=='out'&&!x.auto)R.cats[x.c]=(R.cats[x.c]||0)+x.a});
  if(Y==cy){
-  all('rec').forEach(r=>{for(let m=1;m<=12;m++){const k=ym(Y,m);if(k<r.from||k<=(r.last||''))continue;if(r.t=='in')R.pi+=r.a;else{R.po+=r.a;R.pfix+=r.a}}});
+  all('rec').forEach(r=>{for(let m=1;m<=12;m++){const k=ym(Y,m);if(k<r.from||k<=(r.last||''))continue;if(r.freq=='y'&&m!=r.mon)continue;if(r.t=='in')R.pi+=r.a;else{R.po+=r.a;R.pfix+=r.a}}});
   all('st').forEach(s=>s.m.forEach(m=>{const k=ym(Y,m);if(k<s.from||k<=(s.last||''))return;R.pi+=s.sh*s.dps}));
   R.pvar=R.vr/cm*(12-cm);R.po+=R.pvar}
  R.PI=R.inc+R.pi;R.PO=R.out+R.po;R.bal=R.inc-R.out;R.PB=R.PI-R.PO;return R}
