@@ -38,7 +38,7 @@ const now=new Date(),cy=now.getFullYear(),cm=now.getMonth()+1,td=now.getDate();
 const pad=n=>String(n).padStart(2,'0'),ym=(y,m)=>y+'-'+pad(m),uid=()=>Math.random().toString(36).slice(2,9),dim=(y,m)=>new Date(y,m,0).getDate();
 const $=s=>document.querySelector(s),$$=n=>'$'+Math.round(n).toLocaleString(),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let db=null,ID=null,F=[],P=[],M={},A={},rd={f:0,p:0,m:0,a:0},msg='',tab='home',vy=cy,vm=cm,busy=0,lastAgg='',fail=0;
-const col=p=>p?db.collection('data/users/'+ID):db.collection('fam');
+const col=()=>db.collection('fam');
 const ds=s=>s.docs.map(d=>({id:d.id,...d.data()}));
 const all=k=>[...F,...P].filter(x=>x.k===k);
 const ok=()=>rd.f&&rd.p&&rd.m&&rd.a;
@@ -52,38 +52,23 @@ let lastSync='';async function pull(){const j=await call('sync',{}),h=JSON.strin
 function dref(c,id){const wr=async(o,d)=>{const t=cache[c]||(cache[c]={});if(o=='set')t[id]=d;else if(o=='update')t[id]={...(t[id]||{}),...d};else delete t[id];notify();try{await call('w',{o,c,id,d})}catch(e){await pull().catch(()=>{});throw e}};return{set:d=>wr('set',d),update:d=>wr('update',d),delete:()=>wr('del')}}
 const DB={collection:p=>({doc:id=>dref(p,id),onSnapshot(n,e){(subs[p]=subs[p]||[]).push([n,e]);return()=>{}}}),doc:p=>{const i=p.lastIndexOf('/');return dref(p.slice(0,i),p.slice(i+1))}};
 const rnd=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return[...a].map(x=>x.toString(16).padStart(2,'0')).join('')};
-async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-const shareLink=()=>location.origin+location.pathname+'?f='+CRED.f;
-function copyTxt(t){try{navigator.clipboard.writeText(t);msg='已複製 ✔'}catch(e){msg='請長按文字手動複製'}render()}
-function go(f,k,a){try{localStorage.setItem('lastFam',f);if(k)localStorage.setItem('tok_'+f,k)}catch(e){}location.href=location.pathname+'?f='+f+(a?'&a='+encodeURIComponent(a):'')}
-function create(){go(rnd(16),rnd(12),'')}
-function restore(){const v=$('#rc').value.trim(),m=v.match(/[?&]f=([a-z0-9]{16,40})/),c=v.match(/^([a-z0-9]{16,40})-([a-z0-9]{16,40})$/),a=v.match(/[?&]a=([^&\s]+)/);
- if(m)go(m[1],null,a?decodeURIComponent(a[1]):'');else if(c)go(c[1],c[2],'');else{loginErr='格式不正確，請貼上完整連結或身分碼';render()}}
-function leave(){if(!confirm('離開後需要身分碼才能回到這個家庭，確定嗎？'))return;try{localStorage.removeItem('lastFam');localStorage.removeItem('tok_'+CRED.f)}catch(e){}location.href=location.pathname}
-function loginHtml(){return `<div class="card"><b>🏡 歡迎使用家庭小金庫</b><p class="sub">不需要密碼。請由一位家人先建立，之後把專屬連結傳給其他家人，就能一起記帳。</p><button class="btn" style="width:100%" onclick="create()">建立我們家的小金庫</button><p class="out">${esc(loginErr)}</p></div><div class="card"><b>🔑 已經有家庭連結或身分碼？</b><div class="row" style="margin-top:8px"><input id="rc" placeholder="貼上家庭連結或身分碼"><button class="btn g" onclick="restore()">加入 / 還原</button></div></div>`}
-async function init(){
- const q=new URLSearchParams(location.search),u=q.get('f'),a=q.get('a');let f=/^[a-z0-9]{16,40}$/.test(u||'')?u:null;
- try{if(!f)f=localStorage.getItem('lastFam');
-  if(f){if(a&&a.startsWith('https://script.google.com/'))localStorage.setItem('api_'+f,a);API=localStorage.getItem('api_'+f)||DEF;
-   let k=localStorage.getItem('tok_'+f);if(!k){k=rnd(12);localStorage.setItem('tok_'+f,k)}localStorage.setItem('lastFam',f);CRED={f,k}}}catch(e){}
- render();if(CRED)start()}
+function pick(id){ID=id;try{localStorage.setItem('me',id)}catch(e){}render()}
+async function init(){CRED={};try{ID=localStorage.getItem('me')}catch(e){}render();start()}
 async function start(){
- if(API.startsWith('貼上')){loginErr='尚未設定後端網址，請見部署教學';CRED=null;render();return}
- ID=(await sha(CRED.f+CRED.k)).slice(0,10);db=DB;subs={};cache={};rd={f:0,p:0,m:0,a:0};const er=()=>{msg='連線錯誤';render()};
+ if(API.startsWith('貼上')){msg='尚未設定後端網址，請見部署教學';render();return}
+ db=DB;subs={};cache={};rd={f:0,p:1,m:0,a:1};const er=()=>{msg='連線錯誤';render()};
  db.collection('fam').onSnapshot(x=>{F=ds(x);rd.f=1;sync()},er);
- db.collection('data/users/'+ID).onSnapshot(x=>{P=ds(x);rd.p=1;sync()},er);
  db.collection('members').onSnapshot(x=>{M={};x.docs.forEach(d=>M[d.id]=d.data());rd.m=1;render()},er);
- db.collection('agg').onSnapshot(x=>{A={};x.docs.forEach(d=>A[d.id]=d.data());rd.a=1;render()},er);
  render();
  try{await pull()}catch(e){if(e&&e.code=='bad'){msg='這個小金庫已綁定其他家庭，請向家人索取正確的連結';render();return}msg='連線失敗，請檢查網路或後端網址，稍後自動重試';render();setTimeout(start,10000);return}
  clearInterval(timer);timer=setInterval(()=>{if(document.visibilityState=='visible')pull().catch(()=>{})},20000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState=='visible')pull().catch(()=>{})})}
 function sync(){render();gen();aggSync()}
-async function aggSync(){if(!rd.p)return;const m={};P.filter(x=>x.k=='tx').forEach(x=>{const k=x.d.slice(0,7),r=m[k]||(m[k]={i:0,o:0,f:0});if(x.t=='in')r.i+=x.a;else{r.o+=x.a;if(x.auto)r.f+=x.a}});const j=JSON.stringify(m);if(j===lastAgg)return;lastAgg=j;try{await db.doc('agg/'+ID).set({m})}catch(e){lastAgg=''}}
+async function aggSync(){return;const m={};P.filter(x=>x.k=='tx').forEach(x=>{const k=x.d.slice(0,7),r=m[k]||(m[k]={i:0,o:0,f:0});if(x.t=='in')r.i+=x.a;else{r.o+=x.a;if(x.auto)r.f+=x.a}});const j=JSON.stringify(m);if(j===lastAgg)return;lastAgg=j;try{await db.doc('agg/'+ID).set({m})}catch(e){lastAgg=''}}
 async function gen(){
  if(busy||!rd.f||!rd.p)return;busy=1;
  try{for(const x of [...F,...P]){
-  if(x.o!==ID||(x.k!='rec'&&x.k!='st'))continue;
+  if(x.k!='rec'&&x.k!='st')continue;
   const c=col(x.p),isr=x.k=='rec',todo=[],last=x.last||'';let st=x.from;if(last){let[a,b]=last.split('-').map(Number);if(++b>12){b=1;a++}st=ym(a,b)}
   let[y,m]=st.split('-').map(Number),done=last;
   while(y<cy||(y==cy&&m<=cm)){const k=ym(y,m),d=isr?Math.min(x.day,dim(y,m)):15;if(y==cy&&m==cm&&d>td)break;
@@ -102,11 +87,11 @@ function render(){
  if(!CRED)b=loginHtml();else if(fail)b=`<div class="card"><b>🔑 需要登入才能共用</b><p class="sub">請在 claude.ai 登入你的帳號開啟這個頁面。擁有者要把另一半邀請為「Contributor（可使用並變更資料）」以上，兩人才能看到同一份帳本。</p></div>`;
  else if(!ok())b=`<div class="card">🐾 小金庫載入中…<p class="sub">${esc(msg)}</p></div>`;
  else{
-  const chips=Object.entries(M).map(([id,m])=>`<button class="chip ${id===ID?'on':''}">${esc(m.e)} ${esc(m.n)}${id===ID?'（我）':''}</button>`).join('');
+  const chips=Object.entries(M).map(([id,m])=>`<button class="chip ${id===ID?'on':''}" onclick="pick('${id}')">${esc(m.e)} ${esc(m.n)}${id===ID?'（我）':''}</button>`).join('');
   b=`<div class="row" style="justify-content:center">${chips}</div>`+(msg?`<div class="tip out">${esc(msg)} <button class="btn s" onclick="msg='';render()">知道了</button></div>`:'')+(!M[ID]?welcome():tab=='home'?home():tab=='fix'?fix():tab=='year'?year():set())}
  $('#app').innerHTML=b}
 function welcome(){return `<div class="card"><b>👋 歡迎！先告訴大家你是誰</b><div class="row" style="margin-top:8px"><input id="me" value="🐻" style="flex:0 0 56px;text-align:center"><input id="mn" placeholder="你的暱稱，如：老公"></div><button class="btn" style="width:100%;margin-top:10px" onclick="saveMe()">進入小金庫</button></div>`}
-function saveMe(){const n=$('#mn').value.trim();if(!n)return;w(()=>db.doc('members/'+ID).set({n,e:$('#me').value||'🐻'}))}
+function saveMe(){const n=$('#mn').value.trim();if(!n)return;if(!ID){ID=rnd(4);try{localStorage.setItem('me',ID)}catch(e){}}w(()=>db.doc('members/'+ID).set({n,e:$('#me').value||'🐻'}))}
 function mshift(d){vm+=d;if(vm>12){vm=1;vy++}if(vm<1){vm=12;vy--}render()}
 function home(){
  const p=ym(vy,vm),T=tot(p),list=all('tx').filter(x=>x.d.startsWith(p)).sort((a,b)=>b.d.localeCompare(a.d)),mine=list.filter(x=>x.o===ID);
@@ -117,8 +102,8 @@ function home(){
  <div class="card"><div class="row sp"><b>✏️ 記一筆</b><button class="btn ${vOn?'':'g'}" onclick="voice()">${vOn?'⏹️ 停止':'🎤 語音輸入'}</button></div><div class="sub" style="margin-top:6px">${esc(vsMsg)}</div>
  <div class="row" style="margin-top:8px"><select id="t" onchange="catOpt()"><option value="out">💸 支出</option><option value="in" ${vf.t=='in'?'selected':''}>💰 收入</option></select><input id="a" type="number" inputmode="decimal" placeholder="金額" value="${vf.a||''}"></div>
  <div class="row" style="margin-top:8px"><select id="c">${(vf.t=='in'?IC:EC).map(c=>`<option ${c==vf.c?'selected':''}>${c}</option>`).join('')}</select><input id="d" type="date" value="${vf.d||ym(cy,cm)+'-'+pad(td)}"></div>
- <div class="row" style="margin-top:8px"><input id="n" placeholder="備註（選填）" value="${esc(vf.n||'')}"><label class="sub"><input id="p" type="checkbox" style="flex:none" ${vf.p?'checked':''}> 🙈 私密</label></div>
- <button class="btn" style="width:100%;margin-top:10px" onclick="addTx()">記下來 🐾</button><p class="sub">私密項目只有你看得到明細，另一半只會看到合計金額。</p></div>
+ <div class="row" style="margin-top:8px"><input id="n" placeholder="備註（選填）" value="${esc(vf.n||'')}"></div>
+ <button class="btn" style="width:100%;margin-top:10px" onclick="addTx()">記下來 🐾</button></div>
  ${budgetCard(list)}<div class="card"><b>📒 本月明細</b>
  ${list.length?list.map(x=>`<div class="li"><div>${esc(x.c)}${x.auto?'<span class="tag">自動</span>':''}${x.p?'<span class="tag">🙈</span>':''}<div class="sub">${x.d.slice(5)} ${nm(x.o)}${esc(x.note||'')}</div></div><div class="${x.t}">${x.t=='in'?'+':'-'}${$$(x.a)} ${x.o===ID?`<button class="btn s" onclick="del('${x.id}')">✕</button>`:''}</div></div>`).join(''):'<p class="sub">還沒有紀錄，開始記第一筆吧 🌱</p>'}</div>`}
 function budgetCard(list){
@@ -139,7 +124,7 @@ function parseVoice(tx){let t=tx.replace(/[，,\s]/g,''),a=0,m=t.match(/\d+(\.\d
  if(has('月薪','薪水','薪資')){ty='in';c=IC[0]}else if(has('股利','股息')){ty='in';c=IC[1]}else if(has('收入','紅包','獎金','賺','入帳')){ty='in';c=IC[2]}
  else c=has('保險')?EC[7]:has('房租','房貸')?EC[3]:has('電話','話費','手機費')?EC[4]:has('網路','寬頻')?EC[5]:has('水費','電費','瓦斯','水電')?EC[6]:has('醫','藥','診所','掛號','牙')?EC[10]:has('學費','補習','奶粉','尿布','小孩','育兒','教育')?EC[8]:has('捷運','公車','計程','加油','停車','高鐵','火車','交通','油錢','機票')?EC[2]:has('電影','遊戲','旅遊','旅行','唱歌','娛樂','玩')?EC[9]:has('早餐','午餐','晚餐','宵夜','餐','飯','麵','咖啡','飲料','便當','手搖','吃','喝','外送')?EC[0]:has('超市','全聯','日用','衛生紙','洗','購物','買')?EC[1]:EC[11];
  const d=new Date();if(has('前天'))d.setDate(d.getDate()-2);else if(has('昨天'))d.setDate(d.getDate()-1);
- return{a,t:ty,c,d:ym(d.getFullYear(),d.getMonth()+1)+'-'+pad(d.getDate()),p:has('私密')}}
+ return{a,t:ty,c,d:ym(d.getFullYear(),d.getMonth()+1)+'-'+pad(d.getDate()),p:false}}
 function voice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!SR){vsMsg='這個瀏覽器（或主畫面 app 模式）不支援語音辨識，可改用手機鍵盤上的麥克風 🎤 輸入備註與金額';render();return}
  if(vOn){vrec.stop();return}
@@ -152,7 +137,7 @@ function voice(){const SR=window.SpeechRecognition||window.webkitSpeechRecogniti
   vf={t:r.t,a:r.a,c:r.c,d:r.d,n:tx,p:r.p};vsMsg='✅ 聽到：「'+tx+'」→ '+r.c+' '+$$(r.a)+'，確認後按「記下來」'};
  try{vrec.start()}catch(e){vsMsg='無法啟動語音辨識';render()}}
 function catOpt(){vf.t=$('#t').value;vf.c=null;$('#c').innerHTML=($('#t').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
-function addTx(){const a=parseFloat($('#a').value);if(!(a>0))return;const p=$('#p').checked;vf={};w(()=>col(p).doc('t'+uid()).set({k:'tx',d:$('#d').value,a,t:$('#t').value,c:$('#c').value,o:ID,p,note:$('#n').value}))}
+function addTx(){const a=parseFloat($('#a').value);if(!(a>0))return;const p=false;vf={};w(()=>col(p).doc('t'+uid()).set({k:'tx',d:$('#d').value,a,t:$('#t').value,c:$('#c').value,o:ID,p,note:$('#n').value}))}
 function del(id){const x=[...F,...P].find(y=>y.id===id);if(x)w(()=>col(x.p).doc(id).delete())}
 function fix(){
  const rl=all('rec'),sl=all('st');
@@ -160,17 +145,17 @@ function fix(){
  <div class="row"><input id="rn" placeholder="名稱，如：月薪"><input id="ra" type="number" placeholder="金額"></div>
  <div class="row" style="margin-top:8px"><select id="rt" onchange="rcat()"><option value="in">💰 收入</option><option value="out">💸 支出</option></select><select id="rc">${IC.map(c=>`<option>${c}</option>`).join('')}</select></div>
  <div class="row" style="margin-top:8px"><label class="sub">每月幾號</label><input id="rdy" type="number" min="1" max="31" value="5"><label class="sub">起始月</label><input id="rf" type="month" value="${ym(cy,cm)}"></div>
- <label class="sub"><input id="rp" type="checkbox" style="flex:none"> 🙈 私密</label>
+ 
  <button class="btn g" style="width:100%;margin-top:8px" onclick="addRec()">新增固定項目</button>
  ${rl.map(r=>`<div class="li"><div>${esc(r.c)} ${esc(r.name)}${r.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(r.o)}每月 ${r.day} 號起 ${r.from}</div></div><div class="${r.t}">${$$(r.a)} ${r.o===ID?`<button class="btn s" onclick="del('${r.id}')">✕</button>`:''}</div></div>`).join('')}</div>
  <div class="card"><b>📈 股票股利</b><p class="sub">輸入股數與每次每股股利，配息月份自動入帳；領到後可修正每股實際金額。（網頁無法連線抓股利資料，需手動更新每股金額）</p>
  <div class="row"><input id="sn" placeholder="股票，如：0056"><input id="ss" type="number" placeholder="股數"><input id="sd" type="number" step="0.01" placeholder="每次每股股利"></div>
- <div class="row" style="margin-top:8px"><input id="sm" placeholder="配息月份，如：1,4,7,10"><label class="sub"><input id="sp" type="checkbox" style="flex:none"> 🙈 私密</label></div>
+ <div class="row" style="margin-top:8px"><input id="sm" placeholder="配息月份，如：1,4,7,10"></div>
  <button class="btn g" style="width:100%;margin-top:8px" onclick="addSt()">新增持股</button>
  ${sl.map(s=>`<div class="li"><div>📈 ${esc(s.name)}${s.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(s.o)}${s.sh} 股・${s.m.join(',')} 月配息・約 ${$$(s.sh*s.dps)}/次</div></div>${s.o===ID?`<div class="row" style="flex:0 0 auto;flex-wrap:nowrap"><input id="e${s.id}" type="number" step="0.01" value="${s.dps}" style="width:70px;flex:none"><button class="btn s" onclick="editSt('${s.id}')">更新</button><button class="btn s" onclick="del('${s.id}')">✕</button></div>`:''}</div>`).join('')}</div>`}
 function rcat(){$('#rc').innerHTML=($('#rt').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
-function addRec(){const a=parseFloat($('#ra').value),n=$('#rn').value.trim();if(!(a>0)||!n)return;const p=$('#rp').checked;w(()=>col(p).doc('r'+uid()).set({k:'rec',name:n,a,t:$('#rt').value,c:$('#rc').value,day:Math.min(31,Math.max(1,+$('#rdy').value||1)),from:$('#rf').value||ym(cy,cm),o:ID,p,last:''}))}
-function addSt(){const sh=+$('#ss').value,dps=+$('#sd').value,m=$('#sm').value.split(/[,，\s]+/).map(Number).filter(x=>x>=1&&x<=12),n=$('#sn').value.trim(),p=$('#sp').checked;if(!n||!(sh>0)||!(dps>=0)||!m.length)return;w(()=>col(p).doc('s'+uid()).set({k:'st',name:n,sh,dps,m,from:ym(cy,cm),o:ID,p,last:''}))}
+function addRec(){const a=parseFloat($('#ra').value),n=$('#rn').value.trim();if(!(a>0)||!n)return;const p=false;w(()=>col(p).doc('r'+uid()).set({k:'rec',name:n,a,t:$('#rt').value,c:$('#rc').value,day:Math.min(31,Math.max(1,+$('#rdy').value||1)),from:$('#rf').value||ym(cy,cm),o:ID,p,last:''}))}
+function addSt(){const sh=+$('#ss').value,dps=+$('#sd').value,m=$('#sm').value.split(/[,，\s]+/).map(Number).filter(x=>x>=1&&x<=12),n=$('#sn').value.trim(),p=false;if(!n||!(sh>0)||!(dps>=0)||!m.length)return;w(()=>col(p).doc('s'+uid()).set({k:'st',name:n,sh,dps,m,from:ym(cy,cm),o:ID,p,last:''}))}
 function editSt(id){const s=[...F,...P].find(x=>x.id===id),v=parseFloat($('#e'+id).value);if(s&&v>=0)w(()=>col(s.p).doc(id).update({dps:v}))}
 function report(Y){
  const T=tot(String(Y)),R={inc:T.i,out:T.o,fixed:T.f,vr:T.o-T.f,cats:{},pi:0,po:0,pfix:0,pvar:0};
@@ -197,11 +182,11 @@ function year(){
  <div class="row sp" style="margin-top:10px"><div><div class="sub">目前實際結餘</div><div class="big ${R.bal<0?'out':'in'}">${$$(R.bal)}</div></div><div style="text-align:right"><div class="sub">${vy==cy?'年底預估結餘':'全年結餘'}</div><div class="big ${R.PB<0?'out':'in'}">${$$(R.PB)}</div></div></div>
  <div class="sub" style="margin-top:8px">全年收入${vy==cy?'（預估）':''} ${$$(R.PI)}　全年支出${vy==cy?'（預估）':''} ${$$(R.PO)}</div>
  ${trend(vy)}<div class="bar" style="margin-top:8px"><i style="width:${Math.min(100,R.PI?R.PO/R.PI*100:0)}%"></i></div><div class="sub">支出佔收入 ${R.PI?Math.round(R.PO/R.PI*100):0}%</div>
- ${vy==cy?'<p class="sub">預估＝已入帳 ＋ 尚未入帳的固定收支與股利 ＋ 今年平均每月日常花費 × 剩餘月份。已入帳金額含雙方私密項目；尚未入帳的預估不含對方私密的固定項目。</p>':''}</div>
+ ${vy==cy?'<p class="sub">預估＝已入帳 ＋ 尚未入帳的固定收支與股利 ＋ 今年平均每月日常花費 × 剩餘月份。</p>':''}</div>
  <div class="card"><b>🐻 明年的理財小建議</b>${tips.map(t=>`<div class="tip">${t}</div>`).join('')}</div>`}
 function set(){const m=M[ID]||{n:'',e:'🐻'};
  return `<div class="card"><b>${nm(ID)}我的資料</b><div class="row" style="margin-top:8px"><input id="me" value="${esc(m.e)}" style="flex:0 0 56px;text-align:center"><input id="mn" value="${esc(m.n)}"></div><button class="btn" style="width:100%;margin-top:8px" onclick="saveMe()">儲存</button></div>
- <div class="card"><b>🔗 邀請家人</b><p class="sub">把連結傳給家人，打開後設定自己的名字就能加入（人數不限）。知道連結的人都能進入，請只分享給家人。</p><input readonly value="${shareLink()}" onclick="this.select()" style="width:100%"><button class="btn g" style="width:100%;margin-top:8px" onclick="copyTxt(shareLink())">複製連結</button></div><div class="card"><b>🔑 我的身分碼</b><p class="sub">換手機、或 iPhone 加到主畫面後變成新成員時，用它還原你的身分與私密項目。請自己保存，不要給別人。</p><input readonly value="${CRED.f+'-'+CRED.k}" onclick="this.select()" style="width:100%"><div style="margin-top:8px"><button class="btn s" onclick="copyTxt(CRED.f+'-'+CRED.k)">複製身分碼</button> <button class="btn s" onclick="leave()">離開此家庭</button></div></div>`}
+ <div class="card"><b>🔗 分享給家人</b><p class="sub">把這個網頁的網址傳給家人即可使用，不需要密碼或帳號。知道網址的人都能看到並修改所有帳目。</p><p class="sub">點頁面最上方的名字可以切換記帳人，例如共用同一支手機時。</p></div>`}
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 init();
 </script></body></html>
