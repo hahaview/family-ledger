@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>我們家的小金庫</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#ff9eb5"><link rel="apple-touch-icon" href="apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="小金庫">
+<style>
+:root{--bg:#fff6ef;--card:#ffffff;--tx:#5a4040;--sub:#a38a85;--pk:#ff9eb5;--pk2:#ffe1e8;--mt:#9bd8c0;--mt2:#e0f5ec;--yl:#ffd98a;--ln:#f3dcd2;--bad:#f08a8a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#2b2224;--card:#3a2e31;--tx:#fbeae6;--sub:#c4aaa5;--pk2:#5a3a44;--mt2:#2f4a41;--ln:#54444a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#2b2224;--card:#3a2e31;--tx:#fbeae6;--sub:#c4aaa5;--pk2:#5a3a44;--mt2:#2f4a41;--ln:#54444a;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;max-width:560px;margin:0 auto;padding:12px 14px 90px}
+h1{font-size:21px;margin:6px 0 10px;text-align:center}
+.card{background:var(--card);border-radius:20px;padding:14px;margin:10px 0;box-shadow:0 3px 0 var(--ln)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{justify-content:space-between}
+.chip{border:2px solid var(--ln);background:var(--card);color:var(--tx);border-radius:99px;padding:6px 14px;font-size:15px;cursor:pointer;font-family:inherit}
+.chip.on{background:var(--pk2);border-color:var(--pk);font-weight:700}
+.btn{background:var(--pk);color:#fff;border:0;border-radius:14px;padding:10px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn.g{background:var(--mt)}.btn.s{background:transparent;color:var(--sub);border:1px solid var(--ln);padding:4px 10px;font-size:13px;font-weight:400}
+input,select{border:2px solid var(--ln);background:var(--bg);color:var(--tx);border-radius:12px;padding:8px 10px;font-size:15px;font-family:inherit;min-width:0;flex:1 1 90px}
+.big{font-size:26px;font-weight:800}.sub{color:var(--sub);font-size:13px}
+.in{color:#4bb391}.out{color:var(--bad)}
+.li{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px dashed var(--ln);align-items:center}.li:last-child{border:0}
+.tag{font-size:11px;background:var(--yl);color:#6b4f1a;border-radius:8px;padding:1px 6px;margin-left:4px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:2px solid var(--ln);display:flex;justify-content:center;gap:4px;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px))}
+nav button{flex:1;max-width:120px;border:0;background:none;color:var(--sub);font-size:12px;font-family:inherit;cursor:pointer;padding:4px;border-radius:12px}
+nav button.on{background:var(--pk2);color:var(--tx);font-weight:700}nav span{display:block;font-size:20px}
+.tip{background:var(--mt2);border-radius:14px;padding:10px 12px;margin:8px 0;font-size:14px;line-height:1.55}
+.bar{height:10px;border-radius:9px;background:var(--ln);overflow:hidden}.bar i{display:block;height:100%;background:var(--pk)}
+</style>
+</head>
+<body>
+<h1>🏡 我們家的小金庫 🐻🐰</h1>
+<div id="app"></div>
+<nav id="nav"></nav>
+<script>
+const EC=['🍚 餐飲','🛒 生活用品','🚌 交通','🏠 房租房貸','📱 電話費','🌐 網路費','⚡ 水電瓦斯','🛡️ 保險費','👶 育兒教育','🎈 娛樂','🏥 醫療','🎁 其他'],IC=['💰 月薪','📈 股利','🧧 其他收入'];
+const now=new Date(),cy=now.getFullYear(),cm=now.getMonth()+1,td=now.getDate();
+const pad=n=>String(n).padStart(2,'0'),ym=(y,m)=>y+'-'+pad(m),uid=()=>Math.random().toString(36).slice(2,9),dim=(y,m)=>new Date(y,m,0).getDate();
+const $=s=>document.querySelector(s),$$=n=>'$'+Math.round(n).toLocaleString(),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let db=null,ID=null,F=[],P=[],M={},A={},rd={f:0,p:0,m:0,a:0},msg='',tab='home',vy=cy,vm=cm,busy=0,lastAgg='',fail=0;
+const col=p=>p?db.collection('data/users/'+ID):db.collection('fam');
+const ds=s=>s.docs.map(d=>({id:d.id,...d.data()}));
+const all=k=>[...F,...P].filter(x=>x.k===k);
+const ok=()=>rd.f&&rd.p&&rd.m&&rd.a;
+async function w(fn){try{await fn()}catch(e){msg='儲存失敗：'+(e&&e.message||e.code||'請確認你有編輯權限')}render()}
+const API='https://script.google.com/macros/s/AKfycbxTYJPAFNarIDO3ZS4HL6KOXR2oplXscTUeQiJ5h6oBWzcTPj3XsniJlWFHV4a7gBEEew/exec';
+let CRED=null,subs={},cache={},timer=0,loginErr='';
+async function call(op,x){const r=await fetch(API,{method:'POST',body:JSON.stringify({...CRED,op,...x})});const j=await r.json();if(j.err)throw{code:j.err,message:j.err};return j}
+const snapOf=p=>({docs:Object.entries(cache[p]||{}).map(([id,d])=>({id,data:()=>d}))});
+function notify(){for(const p in subs)if(cache[p])subs[p].forEach(f=>f[0](snapOf(p)))}
+async function pull(){const j=await call('sync',{});cache=j.c;notify()}
+function dref(c,id){const wr=async(o,d)=>{const t=cache[c]||(cache[c]={});if(o=='set')t[id]=d;else if(o=='update')t[id]={...(t[id]||{}),...d};else delete t[id];notify();try{await call('w',{o,c,id,d})}catch(e){await pull().catch(()=>{});throw e}};return{set:d=>wr('set',d),update:d=>wr('update',d),delete:()=>wr('del')}}
+const DB={collection:p=>({doc:id=>dref(p,id),onSnapshot(n,e){(subs[p]=subs[p]||[]).push([n,e]);return()=>{}}}),doc:p=>{const i=p.lastIndexOf('/');return dref(p.slice(0,i),p.slice(i+1))}};
+function loginHtml(){return `<div class="card"><b>🔑 進入小金庫</b><div class="row" style="margin-top:8px"><input id="lp" type="password" placeholder="家庭密碼"></div><div class="row" style="margin-top:8px"><select id="lu"><option value="u1">成員 1（老公）</option><option value="u2">成員 2（老婆）</option></select><input id="lk" type="password" inputmode="numeric" placeholder="個人 PIN（4 碼以上）"></div><button class="btn" style="width:100%;margin-top:10px" onclick="doLogin()">進入</button><p class="out">${esc(loginErr)}</p><p class="sub">第一次登入時輸入的 PIN 會成為你的個人 PIN，請記住它。</p></div>`}
+function doLogin(){CRED={pw:$('#lp').value,uid:$('#lu').value,pin:$('#lk').value};try{localStorage.setItem('cred',JSON.stringify(CRED))}catch(e){}loginErr='';start()}
+function logout(){try{localStorage.removeItem('cred')}catch(e){}location.reload()}
+async function init(){try{CRED=JSON.parse(localStorage.getItem('cred')||'null')}catch(e){}render();if(CRED)start()}
+async function start(){
+ if(API.startsWith('貼上')){loginErr='尚未設定後端網址，請見部署教學';CRED=null;render();return}
+ ID=CRED.uid;db=DB;subs={};cache={};rd={f:0,p:0,m:0,a:0};const er=()=>{msg='連線錯誤';render()};
+ db.collection('fam').onSnapshot(x=>{F=ds(x);rd.f=1;sync()},er);
+ db.collection('data/users/'+ID).onSnapshot(x=>{P=ds(x);rd.p=1;sync()},er);
+ db.collection('members').onSnapshot(x=>{M={};x.docs.forEach(d=>M[d.id]=d.data());rd.m=1;render()},er);
+ db.collection('agg').onSnapshot(x=>{A={};x.docs.forEach(d=>A[d.id]=d.data());rd.a=1;render()},er);
+ render();
+ try{await pull()}catch(e){loginErr=e&&e.code=='bad'?'家庭密碼或個人 PIN 不正確':'連線失敗，請檢查後端網址與網路';try{localStorage.removeItem('cred')}catch(_){}CRED=null;render();return}
+ clearInterval(timer);timer=setInterval(()=>{if(document.visibilityState=='visible')pull().catch(()=>{})},20000);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState=='visible')pull().catch(()=>{})})}
+function sync(){render();gen();aggSync()}
+async function aggSync(){if(!rd.p)return;const m={};P.filter(x=>x.k=='tx').forEach(x=>{const k=x.d.slice(0,7),r=m[k]||(m[k]={i:0,o:0,f:0});if(x.t=='in')r.i+=x.a;else{r.o+=x.a;if(x.auto)r.f+=x.a}});const j=JSON.stringify(m);if(j===lastAgg)return;lastAgg=j;try{await db.doc('agg/'+ID).set({m})}catch(e){lastAgg=''}}
+async function gen(){
+ if(busy||!rd.f||!rd.p)return;busy=1;
+ try{for(const x of [...F,...P]){
+  if(x.o!==ID||(x.k!='rec'&&x.k!='st'))continue;
+  const c=col(x.p),isr=x.k=='rec',todo=[],last=x.last||'';let st=x.from;if(last){let[a,b]=last.split('-').map(Number);if(++b>12){b=1;a++}st=ym(a,b)}
+  let[y,m]=st.split('-').map(Number),done=last;
+  while(y<cy||(y==cy&&m<=cm)){const k=ym(y,m),d=isr?Math.min(x.day,dim(y,m)):15;if(y==cy&&m==cm&&d>td)break;
+   if(isr||x.m.includes(m))todo.push(['x'+x.id+'_'+k,{k:'tx',d:k+'-'+pad(d),a:isr?x.a:x.sh*x.dps,t:isr?x.t:'in',c:isr?x.c:IC[1],o:ID,p:!!x.p,note:isr?x.name:x.name+' 股利',auto:1}]);
+   done=k;if(++m>12){m=1;y++}}
+  if(done!==last){for(const t of todo)await c.doc(t[0]).set(t[1]);await c.doc(x.id).update({last:done})}
+ }}catch(e){msg='自動入帳失敗：'+(e&&e.message||'')}
+ busy=0}
+function tot(pre){const r={i:0,o:0,f:0};all('tx').forEach(x=>{if(x.d.startsWith(pre)){if(x.t=='in')r.i+=x.a;else{r.o+=x.a;if(x.auto)r.f+=x.a}}});
+ for(const id in A){if(id===ID)continue;const m=A[id].m||{};for(const k in m)if(k.startsWith(pre)){r.i+=m[k].i;r.o+=m[k].o;r.f+=m[k].f}}return r}
+const nm=id=>M[id]?M[id].e+' ':'👤 ';
+function setTab(t){tab=t;render()}
+function render(){
+ $('#nav').innerHTML=[['home','🏠','首頁'],['fix','🔁','固定收支'],['year','📊','年度報告'],['set','⚙️','設定']].map(([k,i,n])=>`<button class="${tab==k?'on':''}" onclick="setTab('${k}')"><span>${i}</span>${n}</button>`).join('');
+ let b='';
+ if(!CRED)b=loginHtml();else if(fail)b=`<div class="card"><b>🔑 需要登入才能共用</b><p class="sub">請在 claude.ai 登入你的帳號開啟這個頁面。擁有者要把另一半邀請為「Contributor（可使用並變更資料）」以上，兩人才能看到同一份帳本。</p></div>`;
+ else if(!ok())b=`<div class="card">🐾 小金庫載入中…<p class="sub">${esc(msg)}</p></div>`;
+ else{
+  const chips=Object.entries(M).map(([id,m])=>`<button class="chip ${id===ID?'on':''}">${esc(m.e)} ${esc(m.n)}${id===ID?'（我）':''}</button>`).join('');
+  b=`<div class="row" style="justify-content:center">${chips}</div>`+(msg?`<div class="tip out">${esc(msg)} <button class="btn s" onclick="msg='';render()">知道了</button></div>`:'')+(!M[ID]?welcome():tab=='home'?home():tab=='fix'?fix():tab=='year'?year():set())}
+ $('#app').innerHTML=b}
+function welcome(){return `<div class="card"><b>👋 歡迎！先告訴大家你是誰</b><div class="row" style="margin-top:8px"><input id="me" value="🐻" style="flex:0 0 56px;text-align:center"><input id="mn" placeholder="你的暱稱，如：老公"></div><button class="btn" style="width:100%;margin-top:10px" onclick="saveMe()">進入小金庫</button></div>`}
+function saveMe(){const n=$('#mn').value.trim();if(!n)return;w(()=>db.doc('members/'+ID).set({n,e:$('#me').value||'🐻'}))}
+function mshift(d){vm+=d;if(vm>12){vm=1;vy++}if(vm<1){vm=12;vy--}render()}
+function home(){
+ const p=ym(vy,vm),T=tot(p),list=all('tx').filter(x=>x.d.startsWith(p)).sort((a,b)=>b.d.localeCompare(a.d)),mine=list.filter(x=>x.o===ID);
+ const s=(l,t)=>l.filter(x=>x.t==t).reduce((a,x)=>a+x.a,0),bal=T.i-T.o;
+ return `<div class="card"><div class="row sp"><button class="btn s" onclick="mshift(-1)">◀</button><b>${vy} 年 ${vm} 月</b><button class="btn s" onclick="mshift(1)">▶</button></div>
+ <div class="row sp" style="margin-top:10px"><div><div class="sub">👨‍👩‍👧 家庭結餘</div><div class="big ${bal<0?'out':'in'}">${$$(bal)}</div></div><div style="text-align:right"><div class="sub">收入 <span class="in">${$$(T.i)}</span></div><div class="sub">支出 <span class="out">${$$(T.o)}</span></div></div></div>
+ <div class="sub" style="margin-top:8px">${nm(ID)}我的：收入 ${$$(s(mine,'in'))}　支出 ${$$(s(mine,'out'))}</div></div>
+ <div class="card"><b>✏️ 記一筆</b>
+ <div class="row" style="margin-top:8px"><select id="t" onchange="catOpt()"><option value="out">💸 支出</option><option value="in">💰 收入</option></select><input id="a" type="number" inputmode="decimal" placeholder="金額"></div>
+ <div class="row" style="margin-top:8px"><select id="c">${EC.map(c=>`<option>${c}</option>`).join('')}</select><input id="d" type="date" value="${ym(cy,cm)}-${pad(td)}"></div>
+ <div class="row" style="margin-top:8px"><input id="n" placeholder="備註（選填）"><label class="sub"><input id="p" type="checkbox" style="flex:none"> 🙈 私密</label></div>
+ <button class="btn" style="width:100%;margin-top:10px" onclick="addTx()">記下來 🐾</button><p class="sub">私密項目只有你看得到明細，另一半只會看到合計金額。</p></div>
+ ${budgetCard(list)}<div class="card"><b>📒 本月明細</b>
+ ${list.length?list.map(x=>`<div class="li"><div>${esc(x.c)}${x.auto?'<span class="tag">自動</span>':''}${x.p?'<span class="tag">🙈</span>':''}<div class="sub">${x.d.slice(5)} ${nm(x.o)}${esc(x.note||'')}</div></div><div class="${x.t}">${x.t=='in'?'+':'-'}${$$(x.a)} ${x.o===ID?`<button class="btn s" onclick="del('${x.id}')">✕</button>`:''}</div></div>`).join(''):'<p class="sub">還沒有紀錄，開始記第一筆吧 🌱</p>'}</div>`}
+function budgetCard(list){
+ const B=(all('budget')[0]||{}).m||{},sp={};let tt=0;list.forEach(x=>{if(x.t=='out'){sp[x.c]=(sp[x.c]||0)+x.a;tt+=x.a}});
+ const cats=Object.keys(B),ex=EC.filter(c=>sp[c]&&!B[c]);
+ const row=(c,b)=>{const s=sp[c]||0,r=b?s/b:0;return `<div style="margin:8px 0"><div class="row sp"><span>${esc(c)}</span><span class="sub">${$$(s)}${b?' / '+$$(b):''}</span></div><div class="bar"><i style="width:${b?Math.min(100,r*100):(tt?s/tt*100:0)}%;${r>1?'background:var(--bad)':!b?'background:var(--mt)':''}"></i></div>${r>1?`<div class="sub out">超支 ${$$(s-b)}！</div>`:r>.8?'<div class="sub">快用完囉，注意一下 🐾</div>':''}</div>`};
+ return `<div class="card"><b>🎯 本月預算與花費分類</b>${cats.map(c=>row(c,B[c])).join('')}${ex.map(c=>row(c,0)).join('')}${!cats.length&&!ex.length?'<p class="sub">還沒有支出，記帳後這裡會顯示分類與預算進度。</p>':''}<div class="row" style="margin-top:8px"><select id="bc">${EC.map(c=>`<option>${c}</option>`).join('')}</select><input id="ba" type="number" placeholder="每月預算（0＝取消）"><button class="btn g" onclick="setBud()">設定</button></div><p class="sub">預算由兩人共用；分類只統計你看得到的明細。</p></div>`}
+function setBud(){const a=parseFloat($('#ba').value);if(!(a>=0))return;const m={...((all('budget')[0]||{}).m||{})};if(a>0)m[$('#bc').value]=a;else delete m[$('#bc').value];w(()=>db.doc('fam/budget').set({k:'budget',m}))}
+function trend(Y){const d=[];for(let m=1;m<=12;m++)d.push(tot(ym(Y,m)));const mx=Math.max(1,...d.map(t=>Math.max(t.i,t.o)));
+ return `<div style="display:flex;gap:3px;margin-top:12px">${d.map((t,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center"><div style="display:flex;align-items:flex-end;gap:1px;height:70px"><i style="width:5px;border-radius:3px;background:var(--mt);height:${t.i/mx*100}%"></i><i style="width:5px;border-radius:3px;background:var(--pk);height:${t.o/mx*100}%"></i></div><span class="sub" style="font-size:10px">${i+1}月</span></div>`).join('')}</div><div class="sub">🟢 每月收入　🌸 每月支出</div>`}
+function catOpt(){$('#c').innerHTML=($('#t').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
+function addTx(){const a=parseFloat($('#a').value);if(!(a>0))return;const p=$('#p').checked;w(()=>col(p).doc('t'+uid()).set({k:'tx',d:$('#d').value,a,t:$('#t').value,c:$('#c').value,o:ID,p,note:$('#n').value}))}
+function del(id){const x=[...F,...P].find(y=>y.id===id);if(x)w(()=>col(x.p).doc(id).delete())}
+function fix(){
+ const rl=all('rec'),sl=all('st');
+ return `<div class="card"><b>🔁 固定收支（每月自動入帳）</b><p class="sub">月薪、保險費、電話費、網路費、房貸等，設定後每月自動記帳（由設定的人開啟頁面時入帳）。</p>
+ <div class="row"><input id="rn" placeholder="名稱，如：月薪"><input id="ra" type="number" placeholder="金額"></div>
+ <div class="row" style="margin-top:8px"><select id="rt" onchange="rcat()"><option value="in">💰 收入</option><option value="out">💸 支出</option></select><select id="rc">${IC.map(c=>`<option>${c}</option>`).join('')}</select></div>
+ <div class="row" style="margin-top:8px"><label class="sub">每月幾號</label><input id="rdy" type="number" min="1" max="31" value="5"><label class="sub">起始月</label><input id="rf" type="month" value="${ym(cy,cm)}"></div>
+ <label class="sub"><input id="rp" type="checkbox" style="flex:none"> 🙈 私密</label>
+ <button class="btn g" style="width:100%;margin-top:8px" onclick="addRec()">新增固定項目</button>
+ ${rl.map(r=>`<div class="li"><div>${esc(r.c)} ${esc(r.name)}${r.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(r.o)}每月 ${r.day} 號起 ${r.from}</div></div><div class="${r.t}">${$$(r.a)} ${r.o===ID?`<button class="btn s" onclick="del('${r.id}')">✕</button>`:''}</div></div>`).join('')}</div>
+ <div class="card"><b>📈 股票股利</b><p class="sub">輸入股數與每次每股股利，配息月份自動入帳；領到後可修正每股實際金額。（網頁無法連線抓股利資料，需手動更新每股金額）</p>
+ <div class="row"><input id="sn" placeholder="股票，如：0056"><input id="ss" type="number" placeholder="股數"><input id="sd" type="number" step="0.01" placeholder="每次每股股利"></div>
+ <div class="row" style="margin-top:8px"><input id="sm" placeholder="配息月份，如：1,4,7,10"><label class="sub"><input id="sp" type="checkbox" style="flex:none"> 🙈 私密</label></div>
+ <button class="btn g" style="width:100%;margin-top:8px" onclick="addSt()">新增持股</button>
+ ${sl.map(s=>`<div class="li"><div>📈 ${esc(s.name)}${s.p?'<span class="tag">🙈</span>':''}<div class="sub">${nm(s.o)}${s.sh} 股・${s.m.join(',')} 月配息・約 ${$$(s.sh*s.dps)}/次</div></div>${s.o===ID?`<div class="row" style="flex:0 0 auto;flex-wrap:nowrap"><input id="e${s.id}" type="number" step="0.01" value="${s.dps}" style="width:70px;flex:none"><button class="btn s" onclick="editSt('${s.id}')">更新</button><button class="btn s" onclick="del('${s.id}')">✕</button></div>`:''}</div>`).join('')}</div>`}
+function rcat(){$('#rc').innerHTML=($('#rt').value=='in'?IC:EC).map(c=>`<option>${c}</option>`).join('')}
+function addRec(){const a=parseFloat($('#ra').value),n=$('#rn').value.trim();if(!(a>0)||!n)return;const p=$('#rp').checked;w(()=>col(p).doc('r'+uid()).set({k:'rec',name:n,a,t:$('#rt').value,c:$('#rc').value,day:Math.min(31,Math.max(1,+$('#rdy').value||1)),from:$('#rf').value||ym(cy,cm),o:ID,p,last:''}))}
+function addSt(){const sh=+$('#ss').value,dps=+$('#sd').value,m=$('#sm').value.split(/[,，\s]+/).map(Number).filter(x=>x>=1&&x<=12),n=$('#sn').value.trim(),p=$('#sp').checked;if(!n||!(sh>0)||!(dps>=0)||!m.length)return;w(()=>col(p).doc('s'+uid()).set({k:'st',name:n,sh,dps,m,from:ym(cy,cm),o:ID,p,last:''}))}
+function editSt(id){const s=[...F,...P].find(x=>x.id===id),v=parseFloat($('#e'+id).value);if(s&&v>=0)w(()=>col(s.p).doc(id).update({dps:v}))}
+function report(Y){
+ const T=tot(String(Y)),R={inc:T.i,out:T.o,fixed:T.f,vr:T.o-T.f,cats:{},pi:0,po:0,pfix:0,pvar:0};
+ all('tx').forEach(x=>{if(x.d.startsWith(Y)&&x.t=='out'&&!x.auto)R.cats[x.c]=(R.cats[x.c]||0)+x.a});
+ if(Y==cy){
+  all('rec').forEach(r=>{for(let m=1;m<=12;m++){const k=ym(Y,m);if(k<r.from||k<=(r.last||''))continue;if(r.t=='in')R.pi+=r.a;else{R.po+=r.a;R.pfix+=r.a}}});
+  all('st').forEach(s=>s.m.forEach(m=>{const k=ym(Y,m);if(k<s.from||k<=(s.last||''))return;R.pi+=s.sh*s.dps}));
+  R.pvar=R.vr/cm*(12-cm);R.po+=R.pvar}
+ R.PI=R.inc+R.pi;R.PO=R.out+R.po;R.bal=R.inc-R.out;R.PB=R.PI-R.PO;return R}
+function yshift(d){vy+=d;render()}
+function year(){
+ const R=report(vy),rate=R.PI?R.PB/R.PI:0,mi=R.PI/12,vb=(R.vr+R.pvar)/12;
+ const top=Object.entries(R.cats).sort((a,b)=>b[1]-a[1]).slice(0,3),ins=all('tx').filter(x=>x.d.startsWith(vy)&&x.c==EC[7]).reduce((a,x)=>a+x.a,0),dv=all('tx').filter(x=>x.d.startsWith(vy)&&x.c==IC[1]).reduce((a,x)=>a+x.a,0),tips=[];
+ if(R.PI<=0)tips.push('目前還沒有足夠的收入資料，先設定月薪與固定項目，報告就會越來越準喔 🌱');
+ else{
+  tips.push(rate>=0.2?`🎉 預估儲蓄率 ${(rate*100).toFixed(0)}%，非常棒！明年可維持這個節奏。`:rate>=0.1?`🙂 預估儲蓄率 ${(rate*100).toFixed(0)}%，不錯，明年可以試著提高到 20%。`:`🌧️ 預估儲蓄率只有 ${(rate*100).toFixed(0)}%，明年建議先從「每月發薪日先存 10%」開始。`);
+  tips.push(`🧸 緊急預備金建議準備 6 個月支出，約 ${$$(R.PO/12*6)}。`);
+  tips.push(`💰 明年建議：每月存 ${$$(mi*Math.max(rate,0.2))}、日常變動花費控制在 ${$$(vb*0.95)} 以內（比今年少 5%）。`);
+  if(top.length)tips.push(`📝 明年每月預算建議：${top.map(x=>x[0]+' '+$$(x[1]*0.95/(vy==cy?cm:12))).join('、')}（比今年少 5%），可到首頁設定預算。`);if(top.length)tips.push(`🔍 你看得到的明細中，花最多的是 ${top.map(x=>x[0]+'（'+$$(x[1])+'）').join('、')}，可以先從這幾項檢視。`);
+  if(ins/R.PI>0.15)tips.push(`🛡️ 保險費佔收入 ${(ins/R.PI*100).toFixed(0)}%，超過常見的 15% 上限，建議檢視保單是否重複。`);
+  else if(ins>0)tips.push(`🛡️ 保險費佔收入 ${(ins/R.PI*100).toFixed(0)}%，在合理範圍內。`);
+  if(dv>0)tips.push(`📈 今年你看得到的股利入帳 ${$$(dv)}，建議單獨存起來或再投入，讓它越滾越大。`)}
+ return `<div class="card"><div class="row sp"><button class="btn s" onclick="yshift(-1)">◀</button><b>🎄 ${vy} 年度家庭報告</b><button class="btn s" onclick="yshift(1)">▶</button></div>
+ <div class="row sp" style="margin-top:10px"><div><div class="sub">目前實際結餘</div><div class="big ${R.bal<0?'out':'in'}">${$$(R.bal)}</div></div><div style="text-align:right"><div class="sub">${vy==cy?'年底預估結餘':'全年結餘'}</div><div class="big ${R.PB<0?'out':'in'}">${$$(R.PB)}</div></div></div>
+ <div class="sub" style="margin-top:8px">全年收入${vy==cy?'（預估）':''} ${$$(R.PI)}　全年支出${vy==cy?'（預估）':''} ${$$(R.PO)}</div>
+ ${trend(vy)}<div class="bar" style="margin-top:8px"><i style="width:${Math.min(100,R.PI?R.PO/R.PI*100:0)}%"></i></div><div class="sub">支出佔收入 ${R.PI?Math.round(R.PO/R.PI*100):0}%</div>
+ ${vy==cy?'<p class="sub">預估＝已入帳 ＋ 尚未入帳的固定收支與股利 ＋ 今年平均每月日常花費 × 剩餘月份。已入帳金額含雙方私密項目；尚未入帳的預估不含對方私密的固定項目。</p>':''}</div>
+ <div class="card"><b>🐻 明年的理財小建議</b>${tips.map(t=>`<div class="tip">${t}</div>`).join('')}</div>`}
+function set(){const m=M[ID]||{n:'',e:'🐻'};
+ return `<div class="card"><b>${nm(ID)}我的資料</b><div class="row" style="margin-top:8px"><input id="me" value="${esc(m.e)}" style="flex:0 0 56px;text-align:center"><input id="mn" value="${esc(m.n)}"></div><button class="btn" style="width:100%;margin-top:8px" onclick="saveMe()">儲存</button></div>
+ <div class="card"><b>🔐 帳號與安全</b><p class="sub">你目前以「${ID==='u1'?'成員 1':'成員 2'}」身分登入。私密項目需要你的個人 PIN 才讀得到，另一半只會看到每月合計。</p><button class="btn s" onclick="logout()">登出此裝置</button></div>`}
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+init();
+</script></body></html>
